@@ -1,0 +1,75 @@
+@startuml
+!include <C4/C4_Container>
+!include <C4/C4_Component>
+LAYOUT_WITH_LEGEND()
+
+title High-Level System Architecture
+
+Person(admin, "Administrator", "Community moderator")
+Person(user, "User", "Platform user")
+
+System_Boundary(external, "External Systems") {
+    System_Ext(telegram, "Telegram API", "Bot API")
+    System_Ext(vk, "VK API", "Callback API")
+    System_Ext(discord, "Discord API", "Gateway/REST")
+}
+
+System_Boundary(adapters, "Platform Adapters Layer") {
+    Component(tg_adapter, "Telegram Adapter", "Go", "Handles Telegram events")
+    Component(vk_adapter, "VK Adapter", "Go", "Handles VK events (stub)")
+    Component(dc_adapter, "Discord Adapter", "Go", "Handles Discord events (stub)")
+}
+
+System_Boundary(gateway, "API Gateway") {
+    Component(api_gw, "API Gateway", "Go/Gin", "Routes requests, validates tokens")
+    Component(webhook_handler, "Webhook Handler", "Go", "Processes platform webhooks")
+}
+
+System_Boundary(core, "Core Services") {
+    Component(sub_service, "Subscription Service", "Go", "Manages subscriptions")
+    Component(user_service, "User Service", "Go", "Manages users")
+    Component(ban_service, "Ban Event Service", "Go", "Tracks ban events")
+    Component(sync_service, "Sync Service", "Go", "Syncs bans across platforms")
+    Component(notif_service, "Notification Service", "Go", "Sends notifications")
+}
+
+System_Boundary(infra, "Infrastructure") {
+    ContainerDb(postgres, "PostgreSQL", "Database", "Stores subscriptions, bans, users")
+    ContainerDb(redis, "Redis", "Cache", "Caches user data, deduplication")
+    Container(rabbitmq, "RabbitMQ", "Message Queue", "Event-driven communication")
+}
+
+Rel(admin, api_gw, "Uses", "HTTPS/REST")
+Rel(user, telegram, "Banned in", "")
+
+Rel(telegram, tg_adapter, "Sends events", "Webhook")
+Rel(vk, vk_adapter, "Sends events", "Callback")
+Rel(discord, dc_adapter, "Sends events", "Gateway")
+
+Rel(tg_adapter, webhook_handler, "Normalized events", "")
+Rel(vk_adapter, webhook_handler, "Normalized events", "")
+Rel(dc_adapter, webhook_handler, "Normalized events", "")
+
+Rel(webhook_handler, rabbitmq, "Publishes", "ban.detected")
+Rel(api_gw, sub_service, "API calls", "HTTP")
+Rel(api_gw, user_service, "API calls", "HTTP")
+
+Rel(rabbitmq, ban_service, "Consumes", "ban.detected")
+Rel(rabbitmq, sync_service, "Consumes", "ban.detected")
+Rel(rabbitmq, notif_service, "Consumes", "sync.completed")
+
+Rel(sub_service, postgres, "Reads/Writes", "SQL")
+Rel(ban_service, postgres, "Reads/Writes", "SQL")
+Rel(user_service, postgres, "Reads/Writes", "SQL")
+Rel(sync_service, postgres, "Reads/Writes", "SQL")
+
+Rel(sub_service, redis, "Caches", "")
+Rel(user_service, redis, "Caches", "")
+
+Rel(sync_service, tg_adapter, "Bans user", "")
+Rel(sync_service, vk_adapter, "Bans user", "")
+Rel(sync_service, dc_adapter, "Bans user", "")
+
+Rel(notif_service, tg_adapter, "Sends message", "")
+
+@enduml

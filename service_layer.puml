@@ -1,0 +1,90 @@
+@startuml
+title Service Layer Architecture
+
+package "Service Interfaces" {
+    interface SubscriptionService {
+        +CreateSubscription(ctx, req): *Subscription, error
+        +DeleteSubscription(ctx, id): error
+        +GetAdminSubscriptions(ctx, adminID, platform): []*Subscription, error
+        +GetUserSubscribers(ctx, userID, platform): []*Subscription, error
+        +CheckSubscriptionLimit(ctx, adminID, platform): error
+    }
+    
+    interface BanEventService {
+        +RegisterBanEvent(ctx, event): *BanEventRecord, error
+        +GetBanEvent(ctx, eventID): *BanEventRecord, error
+        +GetUserBanHistory(ctx, platform, userID): []*BanEventRecord, error
+        +SearchBanEvents(ctx, filter): []*BanEventRecord, error
+    }
+    
+    interface SyncService {
+        +SyncBan(ctx, banEventID): error
+        +SyncToChat(ctx, req): error
+        +RetryFailedSyncs(ctx): error
+    }
+    
+    interface NotificationService {
+        +NotifyBanDetected(ctx, event, subs): error
+        +NotifySyncCompleted(ctx, eventID, logs): error
+        +NotifySyncFailed(ctx, eventID, err): error
+    }
+}
+
+package "Service Implementations" {
+    class SubscriptionServiceImpl {
+        -repo: SubscriptionRepository
+        -userRepo: UserRepository
+        -cache: CacheRepository
+        +CreateSubscription(ctx, req): *Subscription, error
+        +DeleteSubscription(ctx, id): error
+        +GetAdminSubscriptions(ctx, adminID, platform): []*Subscription, error
+        +GetUserSubscribers(ctx, userID, platform): []*Subscription, error
+        +CheckSubscriptionLimit(ctx, adminID, platform): error
+    }
+    
+    class BanEventServiceImpl {
+        -repo: BanEventRepository
+        -eventPublisher: EventPublisher
+        -cache: CacheRepository
+        +RegisterBanEvent(ctx, event): *BanEventRecord, error
+        +GetBanEvent(ctx, eventID): *BanEventRecord, error
+        +GetUserBanHistory(ctx, platform, userID): []*BanEventRecord, error
+        +SearchBanEvents(ctx, filter): []*BanEventRecord, error
+    }
+    
+    class SyncServiceImpl {
+        -banEventRepo: BanEventRepository
+        -subscriptionRepo: SubscriptionRepository
+        -syncLogRepo: SyncLogRepository
+        -platformFactory: *PlatformFactory
+        +SyncBan(ctx, banEventID): error
+        +SyncToChat(ctx, req): error
+        +RetryFailedSyncs(ctx): error
+    }
+    
+    class NotificationServiceImpl {
+        -platformFactory: *PlatformFactory
+        -templateEngine: TemplateEngine
+        +NotifyBanDetected(ctx, event, subs): error
+        +NotifySyncCompleted(ctx, eventID, logs): error
+        +NotifySyncFailed(ctx, eventID, err): error
+    }
+}
+
+SubscriptionService <|.. SubscriptionServiceImpl
+BanEventService <|.. BanEventServiceImpl
+SyncService <|.. SyncServiceImpl
+NotificationService <|.. NotificationServiceImpl
+
+SubscriptionServiceImpl --> SubscriptionRepository : uses
+SubscriptionServiceImpl --> UserRepository : uses
+SubscriptionServiceImpl --> CacheRepository : uses
+
+BanEventServiceImpl --> BanEventRepository : uses
+BanEventServiceImpl --> CacheRepository : uses
+
+SyncServiceImpl --> BanEventRepository : uses
+SyncServiceImpl --> SubscriptionRepository : uses
+SyncServiceImpl --> SyncLogRepository : uses
+
+@enduml

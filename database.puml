@@ -1,0 +1,101 @@
+@startuml
+title Database Schema (Entity-Relationship Diagram)
+
+entity "subscriptions" {
+    * id : BIGSERIAL <>
+    --
+    * admin_user_id : VARCHAR(255)
+    * admin_platform : VARCHAR(50)
+    * admin_platform_chat_id : VARCHAR(255)
+    * tracked_user_id : VARCHAR(255)
+    * tracked_platform : VARCHAR(50)
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+    * is_active : BOOLEAN
+    --
+    UNIQUE(admin_user_id, admin_platform_chat_id, tracked_user_id)
+    INDEX(admin_user_id, admin_platform)
+    INDEX(tracked_user_id, tracked_platform)
+}
+
+entity "ban_events" {
+    * id : BIGSERIAL <>
+    --
+    * event_id : VARCHAR(255) <>
+    * platform : VARCHAR(50)
+    * platform_user_id : VARCHAR(255)
+    * platform_chat_id : VARCHAR(255)
+    * ban_type : VARCHAR(50)
+    ban_duration : BIGINT
+    reason : TEXT
+    initiator_platform_id : VARCHAR(255)
+    * event_timestamp : TIMESTAMP
+    * created_at : TIMESTAMP
+    metadata : JSONB
+    --
+    INDEX(platform, platform_user_id, event_timestamp)
+    INDEX(platform, platform_chat_id, event_timestamp)
+    INDEX(event_timestamp DESC)
+}
+
+entity "sync_logs" {
+    * id : BIGSERIAL <>
+    --
+    * ban_event_id : BIGINT <>
+    * source_platform : VARCHAR(50)
+    * target_platform : VARCHAR(50)
+    * target_chat_id : VARCHAR(255)
+    * status : VARCHAR(50)
+    error_message : TEXT
+    * retry_count : INT
+    started_at : TIMESTAMP
+    completed_at : TIMESTAMP
+    * created_at : TIMESTAMP
+    --
+    INDEX(ban_event_id)
+    INDEX(status, created_at)
+    INDEX(target_platform, target_chat_id)
+}
+
+entity "users" {
+    * platform : VARCHAR(50) <>
+    * platform_user_id : VARCHAR(255) <>
+    --
+    username : VARCHAR(255)
+    display_name : VARCHAR(255)
+    avatar_url : TEXT
+    email : VARCHAR(255)
+    phone : VARCHAR(50)
+    * is_active : BOOLEAN
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+    last_seen : TIMESTAMP
+    raw_data : JSONB
+    --
+    INDEX(username)
+    INDEX(email)
+    INDEX(phone)
+}
+
+entity "chat_settings" {
+    * platform : VARCHAR(50) <>
+    * platform_chat_id : VARCHAR(255) <>
+    --
+    chat_title : VARCHAR(255)
+    sync_ban_type : VARCHAR(50)
+    sync_delay_seconds : INT
+    * auto_sync_enabled : BOOLEAN
+    require_confirmation : BOOLEAN
+    settings : JSONB
+    * created_at : TIMESTAMP
+    * updated_at : TIMESTAMP
+}
+
+subscriptions }o--|| users : admin_user
+subscriptions }o--|| users : tracked_user
+ban_events }o--|| users : banned_user
+ban_events }o--|| users : initiator
+sync_logs }o--|| ban_events : relates_to
+sync_logs }o--|| chat_settings : target_chat
+
+@enduml

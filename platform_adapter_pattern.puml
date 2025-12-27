@@ -1,0 +1,104 @@
+@startuml
+title Platform Adapter Architecture
+
+package "Domain Layer" {
+    interface PlatformAdapter {
+        +GetPlatformType(): PlatformType
+        +GetName(): string
+        +GetVersion(): string
+        +Initialize(ctx, config): error
+        +Shutdown(ctx): error
+        +HealthCheck(ctx): error
+        +HandleWebhook(ctx, payload): error
+        +NormalizeBanEvent(ctx, rawEvent): *UnifiedBanEvent, error
+        +BanUser(ctx, req): error
+        +UnbanUser(ctx, chatID, userID): error
+        +GetUserInfo(ctx, userID): *UnifiedUser, error
+        +GetChatInfo(ctx, chatID): *UnifiedChat, error
+        +GetChatAdmins(ctx, chatID): []*UnifiedUser, error
+        +CheckUserPermissions(ctx, chatID, userID): *UserPermissions, error
+        +SendMessage(ctx, req): error
+    }
+    
+    class BanUserRequest {
+        +ChatID: string
+        +UserID: string
+        +Duration: *int64
+        +Reason: *string
+    }
+    
+    class SendMessageRequest {
+        +ChatID: string
+        +Text: string
+        +Options: map[string]interface{}
+    }
+    
+    class UserPermissions {
+        +CanBanUsers: bool
+        +CanDeleteMessages: bool
+        +IsAdmin: bool
+        +IsOwner: bool
+    }
+}
+
+package "Platform Implementations" {
+    class TelegramAdapter {
+        -bot: *tgbotapi.BotAPI
+        -config: TelegramConfig
+        -eventPublisher: EventPublisher
+        +GetPlatformType(): PlatformType
+        +Initialize(ctx, config): error
+        +HandleWebhook(ctx, payload): error
+        +NormalizeBanEvent(ctx, rawEvent): *UnifiedBanEvent, error
+        +BanUser(ctx, req): error
+        +UnbanUser(ctx, chatID, userID): error
+        +SendMessage(ctx, req): error
+        -handleChatMemberUpdate(ctx, event): error
+        -convertToUnifiedBanEvent(event): *UnifiedBanEvent, error
+    }
+    
+    class VKAdapter {
+        -vk: *VkAPI
+        -config: VKConfig
+        -eventPublisher: EventPublisher
+        +GetPlatformType(): PlatformType
+        +Initialize(ctx, config): error
+        +HandleWebhook(ctx, payload): error
+        +NormalizeBanEvent(ctx, rawEvent): *UnifiedBanEvent, error
+        +BanUser(ctx, req): error
+        {note: Stub implementation}
+    }
+    
+    class DiscordAdapter {
+        -bot: *discordgo.Session
+        -config: DiscordConfig
+        -eventPublisher: EventPublisher
+        +GetPlatformType(): PlatformType
+        +Initialize(ctx, config): error
+        +HandleWebhook(ctx, payload): error
+        +NormalizeBanEvent(ctx, rawEvent): *UnifiedBanEvent, error
+        +BanUser(ctx, req): error
+        {note: Stub implementation}
+    }
+    
+    class PlatformFactory {
+        -eventPublisher: EventPublisher
+        +CreateAdapter(platformType): PlatformAdapter, error
+        +GetAvailablePlatforms(): []PlatformType
+        +InitializeAdapter(ctx, platformType, config): PlatformAdapter, error
+    }
+}
+
+PlatformAdapter <|.. TelegramAdapter
+PlatformAdapter <|.. VKAdapter
+PlatformAdapter <|.. DiscordAdapter
+
+PlatformFactory ..> TelegramAdapter : creates
+PlatformFactory ..> VKAdapter : creates
+PlatformFactory ..> DiscordAdapter : creates
+
+PlatformAdapter ..> BanUserRequest : uses
+PlatformAdapter ..> SendMessageRequest : uses
+PlatformAdapter ..> UserPermissions : returns
+
+@enduml

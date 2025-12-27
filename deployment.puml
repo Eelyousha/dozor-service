@@ -1,0 +1,100 @@
+@startuml
+title Deployment Architecture (Docker Compose / Kubernetes)
+
+node "Load Balancer" {
+    [Nginx/Traefik]
+}
+
+node "Application Servers" {
+    node "API Gateway Pod" {
+        [API Gateway Service]
+        [Webhook Handler]
+    }
+    
+    node "Subscription Service Pod" {
+        [Subscription Service]
+    }
+    
+    node "Ban Event Service Pod" {
+        [Ban Event Service]
+    }
+    
+    node "Sync Service Pod" {
+        [Sync Worker 1]
+        [Sync Worker 2]
+        [Sync Worker N]
+    }
+    
+    node "Notification Service Pod" {
+        [Notification Worker]
+    }
+}
+
+node "Platform Adapters" {
+    node "Telegram Adapter Pod" {
+        [Telegram Bot]
+    }
+    
+    node "VK Adapter Pod" {
+        [VK Bot]
+    }
+    
+    node "Discord Adapter Pod" {
+        [Discord Bot]
+    }
+}
+
+database "PostgreSQL Cluster" {
+    [Primary DB]
+    [Replica 1]
+    [Replica 2]
+}
+
+database "Redis Cluster" {
+    [Redis Master]
+    [Redis Slave 1]
+    [Redis Slave 2]
+}
+
+node "Message Queue" {
+    [RabbitMQ Cluster]
+}
+
+cloud "External Services" {
+    [Telegram API]
+    [VK API]
+    [Discord API]
+}
+
+[Nginx/Traefik] --> [API Gateway Service] : HTTPS
+[Nginx/Traefik] --> [Webhook Handler] : HTTPS
+
+[API Gateway Service] --> [Subscription Service] : HTTP
+[API Gateway Service] --> [Ban Event Service] : HTTP
+
+[Webhook Handler] --> [RabbitMQ Cluster] : AMQP
+
+[Subscription Service] --> [Primary DB] : PostgreSQL
+[Ban Event Service] --> [Primary DB] : PostgreSQL
+[Sync Worker 1] --> [Primary DB] : PostgreSQL
+
+[Subscription Service] --> [Redis Master] : Redis Protocol
+[Ban Event Service] --> [Redis Master] : Redis Protocol
+
+[Sync Worker 1] --> [RabbitMQ Cluster] : Consume
+[Sync Worker 2] --> [RabbitMQ Cluster] : Consume
+[Notification Worker] --> [RabbitMQ Cluster] : Consume
+
+[Sync Worker 1] --> [Telegram Bot] : gRPC/HTTP
+[Sync Worker 1] --> [VK Bot] : gRPC/HTTP
+[Sync Worker 1] --> [Discord Bot] : gRPC/HTTP
+
+[Telegram Bot] --> [Telegram API] : HTTPS
+[VK Bot] --> [VK API] : HTTPS
+[Discord Bot] --> [Discord API] : WebSocket/HTTPS
+
+[Telegram API] --> [Telegram Bot] : Webhook
+[VK API] --> [VK Bot] : Callback
+[Discord API] --> [Discord Bot] : Gateway Events
+
+@enduml

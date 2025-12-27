@@ -1,0 +1,84 @@
+@startuml
+title Package Dependencies (Layered Architecture)
+
+package "Presentation Layer" {
+    [API Handlers]
+    [Webhook Handlers]
+}
+
+package "Application Layer" {
+    [Subscription Service]
+    [Ban Event Service]
+    [Sync Service]
+    [Notification Service]
+}
+
+package "Domain Layer" {
+    [Domain Models]
+    [Repository Interfaces]
+    [Service Interfaces]
+    [Platform Adapter Interface]
+}
+
+package "Infrastructure Layer" {
+    [PostgreSQL Repository]
+    [Redis Repository]
+    [RabbitMQ Publisher]
+    [RabbitMQ Consumer]
+}
+
+package "Platform Layer" {
+    [Telegram Adapter]
+    [VK Adapter]
+    [Discord Adapter]
+    [Platform Factory]
+}
+
+package "External" {
+    [PostgreSQL Database]
+    [Redis Cache]
+    [RabbitMQ]
+    [Telegram API]
+    [VK API]
+    [Discord API]
+}
+
+[API Handlers] --> [Subscription Service]
+[API Handlers] --> [Ban Event Service]
+[Webhook Handlers] --> [Platform Factory]
+
+[Subscription Service] --> [Repository Interfaces]
+[Ban Event Service] --> [Repository Interfaces]
+[Sync Service] --> [Repository Interfaces]
+[Sync Service] --> [Platform Adapter Interface]
+[Notification Service] --> [Platform Adapter Interface]
+
+[Repository Interfaces] <|.. [PostgreSQL Repository]
+[Repository Interfaces] <|.. [Redis Repository]
+
+[Platform Adapter Interface] <|.. [Telegram Adapter]
+[Platform Adapter Interface] <|.. [VK Adapter]
+[Platform Adapter Interface] <|.. [Discord Adapter]
+
+[PostgreSQL Repository] --> [PostgreSQL Database]
+[Redis Repository] --> [Redis Cache]
+[RabbitMQ Publisher] --> [RabbitMQ]
+[RabbitMQ Consumer] --> [RabbitMQ]
+
+[Telegram Adapter] --> [Telegram API]
+[VK Adapter] --> [VK API]
+[Discord Adapter] --> [Discord API]
+
+note right of [Domain Layer]
+  Domain Layer is pure business logic.
+  Has NO dependencies on infrastructure.
+  Defines interfaces that infrastructure implements.
+end note
+
+note right of [Infrastructure Layer]
+  Infrastructure implements
+  domain interfaces.
+  Depends on external systems.
+end note
+
+@enduml

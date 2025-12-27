@@ -1,0 +1,105 @@
+@startuml
+title Repository Pattern Architecture
+
+package "Domain Layer" {
+    interface SubscriptionRepository {
+        +Create(ctx, sub): error
+        +GetByID(ctx, id): *Subscription, error
+        +Delete(ctx, id): error
+        +GetByAdmin(ctx, adminID): []*Subscription, error
+        +GetSubscribers(ctx, userID): []*Subscription, error
+        +Exists(ctx, adminID, userID): bool, error
+        +CountByAdmin(ctx, adminID): int64, error
+    }
+    
+    interface BanEventRepository {
+        +Create(ctx, event): error
+        +GetByID(ctx, id): *BanEventRecord, error
+        +GetByEventID(ctx, eventID): *BanEventRecord, error
+        +GetUserHistory(ctx, platform, userID): []*BanEventRecord, error
+        +GetChatHistory(ctx, platform, chatID): []*BanEventRecord, error
+        +Search(ctx, filter): []*BanEventRecord, error
+    }
+    
+    interface UserRepository {
+        +Create(ctx, user): error
+        +GetByID(ctx, platform, userID): *UnifiedUser, error
+        +Update(ctx, user): error
+        +Delete(ctx, platform, userID): error
+        +List(ctx, filter): []*UnifiedUser, error
+    }
+    
+    interface SyncLogRepository {
+        +Create(ctx, log): error
+        +Update(ctx, log): error
+        +GetByID(ctx, id): *SyncLog, error
+        +GetByBanEventID(ctx, eventID): []*SyncLog, error
+        +GetFailedSyncs(ctx, maxRetry, limit): []*SyncLog, error
+    }
+    
+    interface CacheRepository {
+        +Set(ctx, key, value, ttl): error
+        +Get(ctx, key, dest): error
+        +Delete(ctx, key): error
+        +Exists(ctx, key): bool, error
+    }
+}
+
+package "Repository Implementation (PostgreSQL)" {
+    class PostgresSubscriptionRepository {
+        -db: *sql.DB
+        +Create(ctx, sub): error
+        +GetByID(ctx, id): *Subscription, error
+        +Delete(ctx, id): error
+        +GetByAdmin(ctx, adminID): []*Subscription, error
+        +GetSubscribers(ctx, userID): []*Subscription, error
+        +Exists(ctx, adminID, userID): bool, error
+        +CountByAdmin(ctx, adminID): int64, error
+    }
+    
+    class PostgresBanEventRepository {
+        -db: *sql.DB
+        +Create(ctx, event): error
+        +GetByID(ctx, id): *BanEventRecord, error
+        +GetByEventID(ctx, eventID): *BanEventRecord, error
+        +GetUserHistory(ctx, platform, userID): []*BanEventRecord, error
+        +GetChatHistory(ctx, platform, chatID): []*BanEventRecord, error
+        +Search(ctx, filter): []*BanEventRecord, error
+    }
+    
+    class PostgresUserRepository {
+        -db: *sql.DB
+        +Create(ctx, user): error
+        +GetByID(ctx, platform, userID): *UnifiedUser, error
+        +Update(ctx, user): error
+        +Delete(ctx, platform, userID): error
+        +List(ctx, filter): []*UnifiedUser, error
+    }
+    
+    class PostgresSyncLogRepository {
+        -db: *sql.DB
+        +Create(ctx, log): error
+        +Update(ctx, log): error
+        +GetByID(ctx, id): *SyncLog, error
+        +GetByBanEventID(ctx, eventID): []*SyncLog, error
+        +GetFailedSyncs(ctx, maxRetry, limit): []*SyncLog, error
+    }
+}
+
+package "Repository Implementation (Redis)" {
+    class RedisCacheRepository {
+        -client: *redis.Client
+        +Set(ctx, key, value, ttl): error
+        +Get(ctx, key, dest): error
+        +Delete(ctx, key): error
+        +Exists(ctx, key): bool, error
+    }
+}
+
+SubscriptionRepository <|.. PostgresSubscriptionRepository
+BanEventRepository <|.. PostgresBanEventRepository
+UserRepository <|.. PostgresUserRepository
+SyncLogRepository <|.. PostgresSyncLogRepository
+CacheRepository <|.. RedisCacheRepository
+
+@enduml

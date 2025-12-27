@@ -1,0 +1,76 @@
+@startuml
+title Ban Event Processing Flow
+
+actor Admin as admin
+participant "Telegram" as telegram
+participant "Telegram\nAdapter" as tg_adapter
+participant "Webhook\nHandler" as webhook
+participant "RabbitMQ" as mq
+participant "Ban Event\nService" as ban_svc
+participant "Sync\nService" as sync_svc
+participant "Subscription\nRepository" as sub_repo
+participant "Platform\nFactory" as factory
+participant "Target Platform\nAdapter" as target_adapter
+participant "Notification\nService" as notif_svc
+
+admin -> telegram: Ban @user123 in Chat A
+activate telegram
+
+telegram -> tg_adapter: ChatMemberUpdated event
+activate tg_adapter
+
+tg_adapter -> tg_adapter: convertToUnifiedBanEvent()
+tg_adapter -> webhook: UnifiedBanEvent
+activate webhook
+
+webhook -> webhook: Validate & deduplicate
+webhook -> mq: Publish "ban.detected"
+activate mq
+deactivate webhook
+
+mq -> ban_svc: Consume "ban.detected"
+activate ban_svc
+
+ban_svc -> ban_svc: Save BanEventRecord to DB
+ban_svc -> mq: Publish "ban.registered"
+deactivate ban_svc
+
+mq -> sync_svc: Consume "ban.registered"
+activate sync_svc
+
+sync_svc -> sub_repo: GetSubscribers(@user123)
+activate sub_repo
+sub_repo --> sync_svc: [Subscription1, Subscription2, ...]
+deactivate sub_repo
+
+loop For each subscription
+    sync_svc -> factory: GetAdapter(platform)
+    activate factory
+    factory --> sync_svc: PlatformAdapter
+    deactivate factory
+    
+    sync_svc -> target_adapter: BanUser(chatID, userID)
+    activate target_adapter
+    target_adapter -> target_adapter: Execute platform-specific ban
+    target_adapter --> sync_svc: Success/Error
+    deactivate target_adapter
+    
+    sync_svc -> sync_svc: Create SyncLog record
+end
+
+sync_svc -> mq: Publish "sync.completed"
+deactivate sync_svc
+
+mq -> notif_svc: Consume "sync.completed"
+activate notif_svc
+
+notif_svc -> notif_svc: Format notification message
+notif_svc -> tg_adapter: SendMessage(admin, "Ban synced")
+activate tg_adapter
+tg_adapter -> telegram: Send notification
+telegram -> admin: "User @user123 banned in 3 chats"
+deactivate tg_adapter
+deactivate notif_svc
+deactivate telegram
+
+@enduml

@@ -1,0 +1,105 @@
+
+```plantuml
+@startuml
+title Domain Model - Core Entities
+
+package "Domain Models" {
+    enum PlatformType {
+        TELEGRAM
+        VK
+        DISCORD
+        WHATSAPP
+    }
+    
+    enum BanType {
+        PERMANENT
+        TEMPORARY
+        KICK
+        RESTRICT
+    }
+    
+    class UnifiedUser {
+        +Platform: PlatformType
+        +PlatformUserID: string
+        +Username: *string
+        +DisplayName: *string
+        +AvatarURL: *string
+        +Email: *string
+        +Phone: *string
+        +RawData: map[string]interface{}
+    }
+    
+    class UnifiedChat {
+        +Platform: PlatformType
+        +PlatformChatID: string
+        +ChatType: string
+        +Title: *string
+        +MemberCount: *int
+        +RawData: map[string]interface{}
+    }
+    
+    class UnifiedBanEvent {
+        +EventID: string
+        +Platform: PlatformType
+        +User: UnifiedUser
+        +Chat: UnifiedChat
+        +BanType: BanType
+        +BanDuration: *int64
+        +Reason: *string
+        +Initiator: *UnifiedUser
+        +Timestamp: time.Time
+        +RawEvent: map[string]interface{}
+    }
+    
+    class Subscription {
+        +ID: int64
+        +AdminUserID: string
+        +AdminPlatform: PlatformType
+        +AdminPlatformChatID: string
+        +TrackedUserID: string
+        +TrackedPlatform: PlatformType
+        +CreatedAt: time.Time
+        +UpdatedAt: time.Time
+        +IsActive: bool
+    }
+    
+    class BanEventRecord {
+        +ID: int64
+        +EventID: string
+        +Platform: PlatformType
+        +PlatformUserID: string
+        +PlatformChatID: string
+        +BanType: BanType
+        +BanDuration: *int64
+        +Reason: *string
+        +InitiatorPlatformID: *string
+        +EventTimestamp: time.Time
+        +CreatedAt: time.Time
+        +Metadata: map[string]interface{}
+    }
+    
+    class SyncLog {
+        +ID: int64
+        +BanEventID: int64
+        +SourcePlatform: PlatformType
+        +TargetPlatform: PlatformType
+        +TargetChatID: string
+        +Status: string
+        +ErrorMessage: *string
+        +RetryCount: int
+        +StartedAt: *time.Time
+        +CompletedAt: *time.Time
+        +CreatedAt: time.Time
+    }
+    
+    UnifiedBanEvent *-- UnifiedUser : user
+    UnifiedBanEvent *-- UnifiedChat : chat
+    UnifiedBanEvent *-- UnifiedUser : initiator
+    
+    Subscription -- PlatformType
+    BanEventRecord -- PlatformType
+    BanEventRecord -- BanType
+    SyncLog -- BanEventRecord
+}
+
+@enduml
