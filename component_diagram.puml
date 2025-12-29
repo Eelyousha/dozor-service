@@ -3,10 +3,10 @@
 !include <C4/C4_Component>
 LAYOUT_WITH_LEGEND()
 
-title High-Level System Architecture
+title High-Level System Architecture - Trust-Based Ban Sync
 
-Person(admin, "Administrator", "Community moderator")
-Person(user, "User", "Platform user")
+Person(admin_a, "Admin A", "Trusts other admins")
+Person(admin_b, "Admin B", "Trusted moderator")
 
 System_Boundary(external, "External Systems") {
     System_Ext(telegram, "Telegram API", "Bot API")
@@ -16,60 +16,66 @@ System_Boundary(external, "External Systems") {
 
 System_Boundary(adapters, "Platform Adapters Layer") {
     Component(tg_adapter, "Telegram Adapter", "Go", "Handles Telegram events")
-    Component(vk_adapter, "VK Adapter", "Go", "Handles VK events (stub)")
-    Component(dc_adapter, "Discord Adapter", "Go", "Handles Discord events (stub)")
+    Component(vk_adapter, "VK Adapter", "Go", "Handles VK events")
+    Component(dc_adapter, "Discord Adapter", "Go", "Handles Discord events")
 }
 
 System_Boundary(gateway, "API Gateway") {
-    Component(api_gw, "API Gateway", "Go/Gin", "Routes requests, validates tokens")
+    Component(api_gw, "API Gateway", "Go/Gin", "Routes requests")
     Component(webhook_handler, "Webhook Handler", "Go", "Processes platform webhooks")
 }
 
 System_Boundary(core, "Core Services") {
-    Component(sub_service, "Subscription Service", "Go", "Manages subscriptions")
-    Component(user_service, "User Service", "Go", "Manages users")
+    Component(trust_service, "Trust Service", "Go", "Manages trust relations")
+    Component(admin_service, "Admin Service", "Go", "Manages admin-chat relations")
     Component(ban_service, "Ban Event Service", "Go", "Tracks ban events")
-    Component(sync_service, "Sync Service", "Go", "Syncs bans across platforms")
+    Component(sync_service, "Sync Service", "Go", "Trust-based & self-sync")
     Component(notif_service, "Notification Service", "Go", "Sends notifications")
 }
 
 System_Boundary(infra, "Infrastructure") {
-    ContainerDb(postgres, "PostgreSQL", "Database", "Stores subscriptions, bans, users")
-    ContainerDb(redis, "Redis", "Cache", "Caches user data, deduplication")
+    ContainerDb(postgres, "PostgreSQL", "Database", "Stores trust relations, admin-chat mappings, bans")
+    ContainerDb(redis, "Redis", "Cache", "Caches admin chats, trust relations")
     Container(rabbitmq, "RabbitMQ", "Message Queue", "Event-driven communication")
 }
 
-Rel(admin, api_gw, "Uses", "HTTPS/REST")
-Rel(user, telegram, "Banned in", "")
+Rel(admin_a, api_gw, "Creates trust relation", "HTTPS/REST")
+Rel(admin_b, telegram, "Bans user", "")
 
 Rel(telegram, tg_adapter, "Sends events", "Webhook")
 Rel(vk, vk_adapter, "Sends events", "Callback")
 Rel(discord, dc_adapter, "Sends events", "Gateway")
 
-Rel(tg_adapter, webhook_handler, "Normalized events", "")
-Rel(vk_adapter, webhook_handler, "Normalized events", "")
-Rel(dc_adapter, webhook_handler, "Normalized events", "")
-
+Rel(tg_adapter, webhook_handler, "Ban event + initiator", "")
 Rel(webhook_handler, rabbitmq, "Publishes", "ban.detected")
-Rel(api_gw, sub_service, "API calls", "HTTP")
-Rel(api_gw, user_service, "API calls", "HTTP")
+
+Rel(api_gw, trust_service, "CRUD trust relations", "HTTP")
+Rel(api_gw, admin_service, "Sync admin chats", "HTTP")
 
 Rel(rabbitmq, ban_service, "Consumes", "ban.detected")
-Rel(rabbitmq, sync_service, "Consumes", "ban.detected")
-Rel(rabbitmq, notif_service, "Consumes", "sync.completed")
+Rel(ban_service, sync_service, "Trigger sync", "")
 
-Rel(sub_service, postgres, "Reads/Writes", "SQL")
+Rel(sync_service, trust_service, "Get trusters", "")
+Rel(sync_service, admin_service, "Get admin chats", "")
+
+Rel(trust_service, postgres, "Reads/Writes", "SQL")
+Rel(admin_service, postgres, "Reads/Writes", "SQL")
 Rel(ban_service, postgres, "Reads/Writes", "SQL")
-Rel(user_service, postgres, "Reads/Writes", "SQL")
 Rel(sync_service, postgres, "Reads/Writes", "SQL")
 
-Rel(sub_service, redis, "Caches", "")
-Rel(user_service, redis, "Caches", "")
+Rel(trust_service, redis, "Caches", "")
+Rel(admin_service, redis, "Caches", "")
 
 Rel(sync_service, tg_adapter, "Bans user", "")
 Rel(sync_service, vk_adapter, "Bans user", "")
 Rel(sync_service, dc_adapter, "Bans user", "")
 
 Rel(notif_service, tg_adapter, "Sends message", "")
+
+note right of sync_service
+  Two sync modes:
+  1. Self-sync: Admin's own chats
+  2. Trust-sync: Trusters' chats
+end note
 
 @enduml

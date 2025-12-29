@@ -1,90 +1,127 @@
 @startuml
-title Service Layer Architecture
+title Service Layer Architecture - Trust System
 
 package "Service Interfaces" {
-    interface SubscriptionService {
-        +CreateSubscription(ctx, req): *Subscription, error
-        +DeleteSubscription(ctx, id): error
-        +GetAdminSubscriptions(ctx, adminID, platform): []*Subscription, error
-        +GetUserSubscribers(ctx, userID, platform): []*Subscription, error
-        +CheckSubscriptionLimit(ctx, adminID, platform): error
+    interface TrustService {
+        +CreateTrustRelation(ctx, req): *TrustRelation, error
+        +DeleteTrustRelation(ctx, id): error
+        +GetMyTrusted(ctx, adminID, platform): []*TrustRelation, error
+        +GetMyTrusters(ctx, adminID, platform): []*TrustRelation, error
+        +AddTargetChat(ctx, trustID, chat): error
+        +RemoveTargetChat(ctx, trustID, chat): error
+        +UpdateSettings(ctx, trustID, settings): error
+    }
+    
+    interface AdminChatService {
+        +RegisterAdminChat(ctx, relation): error
+        +SyncAdminChats(ctx, adminID, platform): error
+        +GetAdminChats(ctx, adminID, platform): []*AdminChatRelation, error
+        +GetChatAdmins(ctx, platform, chatID): []*AdminChatRelation, error
+        +VerifyAdminPermissions(ctx, adminID, platform, chatID): error
     }
     
     interface BanEventService {
         +RegisterBanEvent(ctx, event): *BanEventRecord, error
         +GetBanEvent(ctx, eventID): *BanEventRecord, error
+        +GetAdminBanHistory(ctx, adminID, platform): []*BanEventRecord, error
         +GetUserBanHistory(ctx, platform, userID): []*BanEventRecord, error
         +SearchBanEvents(ctx, filter): []*BanEventRecord, error
     }
     
     interface SyncService {
-        +SyncBan(ctx, banEventID): error
-        +SyncToChat(ctx, req): error
+        +ProcessBanEvent(ctx, banEventID): error
+        +SyncToAdminOwnChats(ctx, event, adminID): error
+        +SyncToTrusters(ctx, event, trustedAdminID): error
         +RetryFailedSyncs(ctx): error
     }
     
     interface NotificationService {
-        +NotifyBanDetected(ctx, event, subs): error
+        +NotifyBanDetected(ctx, event): error
         +NotifySyncCompleted(ctx, eventID, logs): error
         +NotifySyncFailed(ctx, eventID, err): error
+        +NotifyNewTruster(ctx, trustedAdminID, trusterAdminID): error
     }
 }
 
 package "Service Implementations" {
-    class SubscriptionServiceImpl {
-        -repo: SubscriptionRepository
-        -userRepo: UserRepository
+    class TrustServiceImpl {
+        -trustRepo: TrustRelationRepository
+        -adminRepo: AdminChatRepository
         -cache: CacheRepository
-        +CreateSubscription(ctx, req): *Subscription, error
-        +DeleteSubscription(ctx, id): error
-        +GetAdminSubscriptions(ctx, adminID, platform): []*Subscription, error
-        +GetUserSubscribers(ctx, userID, platform): []*Subscription, error
-        +CheckSubscriptionLimit(ctx, adminID, platform): error
+        +CreateTrustRelation(ctx, req): *TrustRelation, error
+        +DeleteTrustRelation(ctx, id): error
+        +GetMyTrusted(ctx, adminID, platform): []*TrustRelation, error
+        +GetMyTrusters(ctx, adminID, platform): []*TrustRelation, error
+        -validateTrustRelation(trust): error
+        -checkCircularTrust(trusterID, trustedID): error
+    }
+    
+    class AdminChatServiceImpl {
+        -adminRepo: AdminChatRepository
+        -platformFactory: *PlatformFactory
+        -cache: CacheRepository
+        +RegisterAdminChat(ctx, relation): error
+        +SyncAdminChats(ctx, adminID, platform): error
+        +GetAdminChats(ctx, adminID, platform): []*AdminChatRelation, error
+        -fetchChatsFromPlatform(ctx, adminID, platform): []*AdminChatRelation, error
     }
     
     class BanEventServiceImpl {
-        -repo: BanEventRepository
+        -banRepo: BanEventRepository
         -eventPublisher: EventPublisher
         -cache: CacheRepository
         +RegisterBanEvent(ctx, event): *BanEventRecord, error
         +GetBanEvent(ctx, eventID): *BanEventRecord, error
-        +GetUserBanHistory(ctx, platform, userID): []*BanEventRecord, error
-        +SearchBanEvents(ctx, filter): []*BanEventRecord, error
+        +GetAdminBanHistory(ctx, adminID, platform): []*BanEventRecord, error
     }
     
     class SyncServiceImpl {
-        -banEventRepo: BanEventRepository
-        -subscriptionRepo: SubscriptionRepository
+        -banRepo: BanEventRepository
+        -trustRepo: TrustRelationRepository
+        -adminRepo: AdminChatRepository
         -syncLogRepo: SyncLogRepository
         -platformFactory: *PlatformFactory
-        +SyncBan(ctx, banEventID): error
-        +SyncToChat(ctx, req): error
-        +RetryFailedSyncs(ctx): error
+        +ProcessBanEvent(ctx, banEventID): error
+        +SyncToAdminOwnChats(ctx, event, adminID): error
+        +SyncToTrusters(ctx, event, trustedAdminID): error
+        -executeBan(ctx, syncLog, banEvent): error
     }
     
     class NotificationServiceImpl {
         -platformFactory: *PlatformFactory
         -templateEngine: TemplateEngine
-        +NotifyBanDetected(ctx, event, subs): error
+        +NotifyBanDetected(ctx, event): error
         +NotifySyncCompleted(ctx, eventID, logs): error
         +NotifySyncFailed(ctx, eventID, err): error
+        +NotifyNewTruster(ctx, trustedAdminID, trusterAdminID): error
     }
 }
 
-SubscriptionService <|.. SubscriptionServiceImpl
+TrustService <|.. TrustServiceImpl
+AdminChatService <|.. AdminChatServiceImpl
 BanEventService <|.. BanEventServiceImpl
 SyncService <|.. SyncServiceImpl
 NotificationService <|.. NotificationServiceImpl
 
-SubscriptionServiceImpl --> SubscriptionRepository : uses
-SubscriptionServiceImpl --> UserRepository : uses
-SubscriptionServiceImpl --> CacheRepository : uses
+TrustServiceImpl --> TrustRelationRepository : uses
+TrustServiceImpl --> AdminChatRepository : uses
+TrustServiceImpl --> CacheRepository : uses
+
+AdminChatServiceImpl --> AdminChatRepository : uses
+AdminChatServiceImpl --> CacheRepository : uses
 
 BanEventServiceImpl --> BanEventRepository : uses
 BanEventServiceImpl --> CacheRepository : uses
 
 SyncServiceImpl --> BanEventRepository : uses
-SyncServiceImpl --> SubscriptionRepository : uses
+SyncServiceImpl --> TrustRelationRepository : uses
+SyncServiceImpl --> AdminChatRepository : uses
 SyncServiceImpl --> SyncLogRepository : uses
+
+note right of SyncServiceImpl
+  Key service: handles both
+  - Self-sync (admin's own chats)
+  - Trust-sync (trusters' chats)
+end note
 
 @enduml

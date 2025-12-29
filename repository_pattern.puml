@@ -1,32 +1,37 @@
 @startuml
-title Repository Pattern Architecture
+title Repository Pattern Architecture - Trust System
 
-package "Domain Layer" {
-    interface SubscriptionRepository {
-        +Create(ctx, sub): error
-        +GetByID(ctx, id): *Subscription, error
+package "Domain Layer" <<Rectangle>> {
+    interface TrustRelationRepository {
+        +Create(ctx, trust): error
+        +GetByID(ctx, id): *TrustRelation, error
         +Delete(ctx, id): error
-        +GetByAdmin(ctx, adminID): []*Subscription, error
-        +GetSubscribers(ctx, userID): []*Subscription, error
-        +Exists(ctx, adminID, userID): bool, error
-        +CountByAdmin(ctx, adminID): int64, error
+        +GetTrustedByAdmin(ctx, adminID, platform): []*TrustRelation, error
+        +GetTrustersOfAdmin(ctx, adminID, platform): []*TrustRelation, error
+        +Exists(ctx, trusterID, trustedID, platform): bool, error
+        +AddTargetChat(ctx, trustID, chat): error
+        +RemoveTargetChat(ctx, trustID, chat): error
+        +GetTargetChats(ctx, trustID): []ChatTarget, error
+    }
+    
+    interface AdminChatRepository {
+        +Create(ctx, relation): error
+        +Update(ctx, relation): error
+        +GetAdminChats(ctx, adminID, platform): []*AdminChatRelation, error
+        +GetChatAdmins(ctx, platform, chatID): []*AdminChatRelation, error
+        +IsAdmin(ctx, adminID, platform, chatID): bool, error
+        +CanBan(ctx, adminID, platform, chatID): bool, error
+        +SyncFromPlatform(ctx, adminID, platform, chats): error
     }
     
     interface BanEventRepository {
         +Create(ctx, event): error
         +GetByID(ctx, id): *BanEventRecord, error
         +GetByEventID(ctx, eventID): *BanEventRecord, error
-        +GetUserHistory(ctx, platform, userID): []*BanEventRecord, error
-        +GetChatHistory(ctx, platform, chatID): []*BanEventRecord, error
+        +GetByInitiator(ctx, adminID, platform, limit): []*BanEventRecord, error
+        +GetUserHistory(ctx, platform, userID, limit): []*BanEventRecord, error
+        +GetChatHistory(ctx, platform, chatID, limit): []*BanEventRecord, error
         +Search(ctx, filter): []*BanEventRecord, error
-    }
-    
-    interface UserRepository {
-        +Create(ctx, user): error
-        +GetByID(ctx, platform, userID): *UnifiedUser, error
-        +Update(ctx, user): error
-        +Delete(ctx, platform, userID): error
-        +List(ctx, filter): []*UnifiedUser, error
     }
     
     interface SyncLogRepository {
@@ -34,6 +39,7 @@ package "Domain Layer" {
         +Update(ctx, log): error
         +GetByID(ctx, id): *SyncLog, error
         +GetByBanEventID(ctx, eventID): []*SyncLog, error
+        +GetByTrustRelation(ctx, trustID): []*SyncLog, error
         +GetFailedSyncs(ctx, maxRetry, limit): []*SyncLog, error
     }
     
@@ -45,16 +51,29 @@ package "Domain Layer" {
     }
 }
 
-package "Repository Implementation (PostgreSQL)" {
-    class PostgresSubscriptionRepository {
+package "Repository Implementation (PostgreSQL)" <<Database>> {
+    class PostgresTrustRelationRepository {
         -db: *sql.DB
-        +Create(ctx, sub): error
-        +GetByID(ctx, id): *Subscription, error
+        +Create(ctx, trust): error
+        +GetByID(ctx, id): *TrustRelation, error
         +Delete(ctx, id): error
-        +GetByAdmin(ctx, adminID): []*Subscription, error
-        +GetSubscribers(ctx, userID): []*Subscription, error
-        +Exists(ctx, adminID, userID): bool, error
-        +CountByAdmin(ctx, adminID): int64, error
+        +GetTrustedByAdmin(ctx, adminID, platform): []*TrustRelation, error
+        +GetTrustersOfAdmin(ctx, adminID, platform): []*TrustRelation, error
+        +Exists(ctx, trusterID, trustedID, platform): bool, error
+        +AddTargetChat(ctx, trustID, chat): error
+        +RemoveTargetChat(ctx, trustID, chat): error
+        +GetTargetChats(ctx, trustID): []ChatTarget, error
+    }
+    
+    class PostgresAdminChatRepository {
+        -db: *sql.DB
+        +Create(ctx, relation): error
+        +Update(ctx, relation): error
+        +GetAdminChats(ctx, adminID, platform): []*AdminChatRelation, error
+        +GetChatAdmins(ctx, platform, chatID): []*AdminChatRelation, error
+        +IsAdmin(ctx, adminID, platform, chatID): bool, error
+        +CanBan(ctx, adminID, platform, chatID): bool, error
+        +SyncFromPlatform(ctx, adminID, platform, chats): error
     }
     
     class PostgresBanEventRepository {
@@ -62,18 +81,10 @@ package "Repository Implementation (PostgreSQL)" {
         +Create(ctx, event): error
         +GetByID(ctx, id): *BanEventRecord, error
         +GetByEventID(ctx, eventID): *BanEventRecord, error
-        +GetUserHistory(ctx, platform, userID): []*BanEventRecord, error
-        +GetChatHistory(ctx, platform, chatID): []*BanEventRecord, error
+        +GetByInitiator(ctx, adminID, platform, limit): []*BanEventRecord, error
+        +GetUserHistory(ctx, platform, userID, limit): []*BanEventRecord, error
+        +GetChatHistory(ctx, platform, chatID, limit): []*BanEventRecord, error
         +Search(ctx, filter): []*BanEventRecord, error
-    }
-    
-    class PostgresUserRepository {
-        -db: *sql.DB
-        +Create(ctx, user): error
-        +GetByID(ctx, platform, userID): *UnifiedUser, error
-        +Update(ctx, user): error
-        +Delete(ctx, platform, userID): error
-        +List(ctx, filter): []*UnifiedUser, error
     }
     
     class PostgresSyncLogRepository {
@@ -82,11 +93,12 @@ package "Repository Implementation (PostgreSQL)" {
         +Update(ctx, log): error
         +GetByID(ctx, id): *SyncLog, error
         +GetByBanEventID(ctx, eventID): []*SyncLog, error
+        +GetByTrustRelation(ctx, trustID): []*SyncLog, error
         +GetFailedSyncs(ctx, maxRetry, limit): []*SyncLog, error
     }
 }
 
-package "Repository Implementation (Redis)" {
+package "Repository Implementation (Redis)" <<Database>> {
     class RedisCacheRepository {
         -client: *redis.Client
         +Set(ctx, key, value, ttl): error
@@ -96,9 +108,9 @@ package "Repository Implementation (Redis)" {
     }
 }
 
-SubscriptionRepository <|.. PostgresSubscriptionRepository
+TrustRelationRepository <|.. PostgresTrustRelationRepository
+AdminChatRepository <|.. PostgresAdminChatRepository
 BanEventRepository <|.. PostgresBanEventRepository
-UserRepository <|.. PostgresUserRepository
 SyncLogRepository <|.. PostgresSyncLogRepository
 CacheRepository <|.. RedisCacheRepository
 

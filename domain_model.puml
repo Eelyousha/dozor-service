@@ -1,7 +1,5 @@
-
-```plantuml
 @startuml
-title Domain Model - Core Entities
+title Domain Model - Trust-Based System
 
 package "Domain Models" {
     enum PlatformType {
@@ -16,6 +14,38 @@ package "Domain Models" {
         TEMPORARY
         KICK
         RESTRICT
+    }
+    
+    class TrustRelation {
+        +ID: int64
+        +TrusterAdminID: string
+        +TrusterPlatform: PlatformType
+        +TrustedAdminID: string
+        +TrustedPlatform: PlatformType
+        +TargetChats: []ChatTarget
+        +AutoSync: bool
+        +SyncBanType: string
+        +RequireConfirmation: bool
+        +CreatedAt: time.Time
+        +UpdatedAt: time.Time
+        +IsActive: bool
+    }
+    
+    class ChatTarget {
+        +Platform: PlatformType
+        +PlatformChatID: string
+    }
+    
+    class AdminChatRelation {
+        +ID: int64
+        +AdminID: string
+        +Platform: PlatformType
+        +PlatformChatID: string
+        +Role: string
+        +CanBan: bool
+        +IsActive: bool
+        +CreatedAt: time.Time
+        +UpdatedAt: time.Time
     }
     
     class UnifiedUser {
@@ -38,41 +68,17 @@ package "Domain Models" {
         +RawData: map[string]interface{}
     }
     
-    class UnifiedBanEvent {
-        +EventID: string
-        +Platform: PlatformType
-        +User: UnifiedUser
-        +Chat: UnifiedChat
-        +BanType: BanType
-        +BanDuration: *int64
-        +Reason: *string
-        +Initiator: *UnifiedUser
-        +Timestamp: time.Time
-        +RawEvent: map[string]interface{}
-    }
-    
-    class Subscription {
-        +ID: int64
-        +AdminUserID: string
-        +AdminPlatform: PlatformType
-        +AdminPlatformChatID: string
-        +TrackedUserID: string
-        +TrackedPlatform: PlatformType
-        +CreatedAt: time.Time
-        +UpdatedAt: time.Time
-        +IsActive: bool
-    }
-    
     class BanEventRecord {
         +ID: int64
         +EventID: string
         +Platform: PlatformType
         +PlatformUserID: string
         +PlatformChatID: string
+        +InitiatorAdminID: string
+        +InitiatorPlatform: PlatformType
         +BanType: BanType
         +BanDuration: *int64
         +Reason: *string
-        +InitiatorPlatformID: *string
         +EventTimestamp: time.Time
         +CreatedAt: time.Time
         +Metadata: map[string]interface{}
@@ -81,9 +87,14 @@ package "Domain Models" {
     class SyncLog {
         +ID: int64
         +BanEventID: int64
+        +TrustRelationID: *int64
+        +SourceAdminID: string
         +SourcePlatform: PlatformType
+        +SourceChatID: string
         +TargetPlatform: PlatformType
         +TargetChatID: string
+        +TargetAdminID: string
+        +BannedUserID: string
         +Status: string
         +ErrorMessage: *string
         +RetryCount: int
@@ -92,14 +103,33 @@ package "Domain Models" {
         +CreatedAt: time.Time
     }
     
-    UnifiedBanEvent *-- UnifiedUser : user
-    UnifiedBanEvent *-- UnifiedChat : chat
-    UnifiedBanEvent *-- UnifiedUser : initiator
+    TrustRelation *-- ChatTarget : target_chats
+    TrustRelation -- PlatformType
     
-    Subscription -- PlatformType
+    AdminChatRelation -- PlatformType
+    
     BanEventRecord -- PlatformType
     BanEventRecord -- BanType
+    
     SyncLog -- BanEventRecord
+    SyncLog -- TrustRelation : optional
+    
+    note right of TrustRelation
+        Admin A trusts Admin B.
+        When B bans someone,
+        they're banned in A's chats.
+    end note
+    
+    note right of AdminChatRelation
+        Tracks which admins
+        moderate which chats.
+        Used for self-sync.
+    end note
+    
+    note right of SyncLog
+        TrustRelationID is NULL
+        for self-sync operations.
+    end note
 }
 
 @enduml

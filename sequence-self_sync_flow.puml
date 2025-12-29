@@ -1,0 +1,67 @@
+@startuml
+title Self-Sync: Admin Bans in One of Their Own Chats
+
+actor "Admin A" as adminA
+participant "Telegram" as telegram
+participant "Telegram\nAdapter" as adapter
+participant "Ban Event\nService" as ban_svc
+participant "Sync\nService" as sync_svc
+participant "Admin Chat\nRepo" as admin_repo
+participant "Target\nAdapter" as target
+
+adminA -> telegram: Ban User456 in Chat 1
+activate telegram
+
+telegram -> adapter: ChatMemberUpdated\n{from: Admin A, user: User456}
+activate adapter
+
+adapter -> adapter: Extract initiator:\nAdmin A
+
+adapter -> ban_svc: RegisterBanEvent(\n  chat=Chat 1,\n  user=User456,\n  initiator=Admin A)
+activate ban_svc
+
+ban_svc -> ban_svc: Save event to DB
+
+ban_svc -> sync_svc: ProcessBanEvent(event_id)
+activate sync_svc
+
+== Self-Sync ==
+note right of sync_svc
+Admin A manages multiple chats.
+Sync ban to all other chats.
+end note
+
+sync_svc -> admin_repo: GetAdminChats(Admin A)
+activate admin_repo
+admin_repo --> sync_svc: [Chat 1, Chat 2, Chat 3]
+deactivate admin_repo
+
+sync_svc -> sync_svc: Filter out source (Chat 1)\nRemaining: [Chat 2, Chat 3]
+
+loop For each chat [2, 3]
+    sync_svc -> sync_svc: Check can_ban = true
+    
+    sync_svc -> target: BanUser(Chat 2, User456)
+    activate target
+    target --> sync_svc: Success
+    deactivate target
+    
+    sync_svc -> sync_svc: Create SyncLog\n(trust_relation_id=NULL,\n source=Chat 1,\n target=Chat 2,\n status=success)
+end
+
+sync_svc --> ban_svc: Self-sync completed
+deactivate sync_svc
+
+ban_svc --> adapter: Done
+deactivate ban_svc
+deactivate adapter
+deactivate telegram
+
+note over adminA
+User456 is now banned in:
+- Chat 1 (manual)
+- Chat 2 (auto-synced)
+- Chat 3 (auto-synced)
+end note
+
+@enduml

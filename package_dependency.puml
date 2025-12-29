@@ -1,5 +1,5 @@
 @startuml
-title Package Dependencies (Layered Architecture)
+title Package Dependencies - Trust-Based System
 
 package "Presentation Layer" {
     [API Handlers]
@@ -7,7 +7,8 @@ package "Presentation Layer" {
 }
 
 package "Application Layer" {
-    [Subscription Service]
+    [Trust Service]
+    [Admin Chat Service]
     [Ban Event Service]
     [Sync Service]
     [Notification Service]
@@ -43,14 +44,20 @@ package "External" {
     [Discord API]
 }
 
-[API Handlers] --> [Subscription Service]
+[API Handlers] --> [Trust Service]
+[API Handlers] --> [Admin Chat Service]
 [API Handlers] --> [Ban Event Service]
 [Webhook Handlers] --> [Platform Factory]
 
-[Subscription Service] --> [Repository Interfaces]
+[Trust Service] --> [Repository Interfaces]
+[Admin Chat Service] --> [Repository Interfaces]
 [Ban Event Service] --> [Repository Interfaces]
+
 [Sync Service] --> [Repository Interfaces]
+[Sync Service] --> [Trust Service]
+[Sync Service] --> [Admin Chat Service]
 [Sync Service] --> [Platform Adapter Interface]
+
 [Notification Service] --> [Platform Adapter Interface]
 
 [Repository Interfaces] <|.. [PostgreSQL Repository]
@@ -69,16 +76,19 @@ package "External" {
 [VK Adapter] --> [VK API]
 [Discord Adapter] --> [Discord API]
 
-note right of [Domain Layer]
-  Domain Layer is pure business logic.
-  Has NO dependencies on infrastructure.
-  Defines interfaces that infrastructure implements.
+note right of [Sync Service]
+  Core logic:
+  1. Self-sync (admin's own chats)
+  2. Trust-sync (trusters' chats)
+  Depends on Trust & AdminChat services
 end note
 
-note right of [Infrastructure Layer]
-  Infrastructure implements
-  domain interfaces.
-  Depends on external systems.
+note right of [Domain Layer]
+  New entities:
+  - TrustRelation
+  - AdminChatRelation
+  - Updated BanEventRecord
+    (with initiator_admin_id)
 end note
 
 @enduml

@@ -1,0 +1,73 @@
+@startuml
+title Trust Network Example
+
+!define TRUST_COLOR #90EE90
+!define ADMIN_COLOR #87CEEB
+!define CHAT_COLOR #FFE4B5
+
+skinparam rectangle {
+    BackgroundColor<<admin>> ADMIN_COLOR
+    BackgroundColor<<chat>> CHAT_COLOR
+    BorderColor Black
+}
+
+rectangle "Admin A" <<admin>> as adminA
+rectangle "Admin B" <<admin>> as adminB
+rectangle "Admin C" <<admin>> as adminC
+rectangle "Admin D" <<admin>> as adminD
+
+rectangle "Chat A1" <<chat>> as chatA1
+rectangle "Chat A2" <<chat>> as chatA2
+rectangle "Chat A3" <<chat>> as chatA3
+
+rectangle "Chat B1" <<chat>> as chatB1
+rectangle "Chat B2" <<chat>> as chatB2
+
+rectangle "Chat C1" <<chat>> as chatC1
+
+rectangle "Chat D1" <<chat>> as chatD1
+
+' Admin ownership
+adminA -down-> chatA1 : manages
+adminA -down-> chatA2 : manages
+adminA -down-> chatA3 : manages
+
+adminB -down-> chatB1 : manages
+adminB -down-> chatB2 : manages
+
+adminC -down-> chatC1 : manages
+
+adminD -down-> chatD1 : manages
+
+' Trust relationships
+adminA .right.> adminB : trusts
+adminA .right.> adminC : trusts
+adminB .right.> adminD : trusts
+
+note right of adminA
+  Admin A trusts B and C.
+  
+  When B or C ban someone:
+  → Auto-ban in A1, A2, A3
+end note
+
+note right of adminB
+  Admin B trusts D.
+  
+  When D bans someone:
+  → Auto-ban in B1, B2
+  
+  When B bans someone:
+  → Self-sync to B2
+  → Trust-sync to A1, A2, A3
+end note
+
+note bottom
+  Example flow:
+  1. Admin B bans User123 in Chat B1
+  2. Self-sync: User123 banned in B2
+  3. Trust-sync: User123 banned in A1, A2, A3
+     (because Admin A trusts Admin B)
+end note
+
+@enduml

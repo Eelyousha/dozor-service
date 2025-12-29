@@ -11,8 +11,12 @@ node "Application Servers" {
         [Webhook Handler]
     }
     
-    node "Subscription Service Pod" {
-        [Subscription Service]
+    node "Trust Service Pod" {
+        [Trust Service]
+    }
+    
+    node "Admin Chat Service Pod" {
+        [Admin Chat Service]
     }
     
     node "Ban Event Service Pod" {
@@ -69,17 +73,19 @@ cloud "External Services" {
 [Nginx/Traefik] --> [API Gateway Service] : HTTPS
 [Nginx/Traefik] --> [Webhook Handler] : HTTPS
 
-[API Gateway Service] --> [Subscription Service] : HTTP
+[API Gateway Service] --> [Trust Service] : HTTP
+[API Gateway Service] --> [Admin Chat Service] : HTTP
 [API Gateway Service] --> [Ban Event Service] : HTTP
 
 [Webhook Handler] --> [RabbitMQ Cluster] : AMQP
 
-[Subscription Service] --> [Primary DB] : PostgreSQL
+[Trust Service] --> [Primary DB] : PostgreSQL
+[Admin Chat Service] --> [Primary DB] : PostgreSQL
 [Ban Event Service] --> [Primary DB] : PostgreSQL
 [Sync Worker 1] --> [Primary DB] : PostgreSQL
 
-[Subscription Service] --> [Redis Master] : Redis Protocol
-[Ban Event Service] --> [Redis Master] : Redis Protocol
+[Trust Service] --> [Redis Master] : Redis Protocol
+[Admin Chat Service] --> [Redis Master] : Redis Protocol
 
 [Sync Worker 1] --> [RabbitMQ Cluster] : Consume
 [Sync Worker 2] --> [RabbitMQ Cluster] : Consume

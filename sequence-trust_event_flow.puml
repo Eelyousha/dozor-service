@@ -1,0 +1,93 @@
+@startuml
+title Create Trust Relation Flow
+
+actor "Admin A" as adminA
+participant "API Gateway" as api_gw
+participant "Trust\nService" as trust_svc
+participant "Admin Chat\nRepo" as admin_repo
+participant "Trust\nRepo" as trust_repo
+participant "Cache\n(Redis)" as cache
+participant "PostgreSQL" as db
+participant "Notification\nService" as notif
+
+adminA -> api_gw: POST /api/v1/trust\n{\n  truster: Admin A,\n  trusted: Admin B,\n  target_chats: [X, Y]\n}
+activate api_gw
+
+api_gw -> api_gw: Validate JWT\nVerify Admin A permissions
+
+api_gw -> trust_svc: CreateTrustRelation(ctx, req)
+activate trust_svc
+
+== Validation ==
+trust_svc -> trust_svc: Validate: truster ≠ trusted
+
+trust_svc -> trust_repo: Exists(Admin A, Admin B)
+activate trust_repo
+trust_repo -> db: SELECT COUNT(*)\nWHERE truster=A AND trusted=B
+activate db
+db --> trust_repo: 0
+deactivate db
+trust_repo --> trust_svc: false
+deactivate trust_repo
+
+trust_svc -> trust_svc: ✓ No duplicate
+
+== Verify Target Chats ==
+loop For each target chat [X, Y]
+    trust_svc -> admin_repo: IsAdmin(Admin A, Chat X)
+    activate admin_repo
+    admin_repo -> db: SELECT * FROM admin_chat_relations\nWHERE admin_id=A AND chat_id=X
+    activate db
+    db --> admin_repo: found
+    deactivate db
+    admin_repo --> trust_svc: true
+    deactivate admin_repo
+    
+    trust_svc -> trust_svc: ✓ Admin A owns Chat X
+end
+
+== Create Trust Relation ==
+trust_svc -> trust_repo: Create(trustRelation)
+activate trust_repo
+
+trust_repo -> db: BEGIN TRANSACTION
+activate db
+
+trust_repo -> db: INSERT INTO trust_relations\n(truster=A, trusted=B, ...)
+db --> trust_repo: id=42
+
+loop For target chats [X, Y]
+    trust_repo -> db: INSERT INTO trust_target_chats\n(trust_id=42, chat=X)
+end
+
+trust_repo -> db: COMMIT
+deactivate db
+
+trust_repo --> trust_svc: *TrustRelation{ID: 42}
+deactivate trust_repo
+
+== Invalidate Cache ==
+trust_svc -> cache: DELETE trust:trusters:{Admin B}
+activate cache
+deactivate cache
+
+trust_svc -> cache: DELETE trust:trusted:{Admin A}
+activate cache
+deactivate cache
+
+== Notify Trusted Admin ==
+trust_svc -> notif: NotifyNewTruster(\n  trusted=Admin B,\n  truster=Admin A)
+activate notif
+
+notif -> notif: Format: "Admin A now trusts\nyour moderation decisions"
+
+notif --> trust_svc: Notification sent
+deactivate notif
+
+trust_svc --> api_gw: *TrustRelation{ID: 42, ...}
+deactivate trust_svc
+
+api_gw --> adminA: 201 Created\n{\n  "id": 42,\n  "truster_admin_id": "...",\n  "trusted_admin_id": "...",\n  "target_chats": [...]\n}
+deactivate api_gw
+
+@enduml

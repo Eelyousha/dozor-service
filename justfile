@@ -23,7 +23,7 @@ all: setup
     echo "✓ Все диаграммы сохранены в {{output_dir}}/"
 
 # Сгенерировать диаграмму для конкретного файла
-generate file:
+generate file format:
     @mkdir -p {{output_dir}}
     plantuml -t{{format}} -o "{{output_dir}}" {{file}}
     @echo "✓ Диаграмма сохранена в {{output_dir}}/"
@@ -49,15 +49,6 @@ all-with-format fmt:
         plantuml -t{{fmt}} -o "{{output_dir}}" "$file"
     done
     echo "✓ Все диаграммы сохранены в {{output_dir}}/"
-
-# Следить за изменениями и автоматически перегенерировать
-watch:
-    #!/usr/bin/env bash
-    echo "Наблюдение за .puml/.plantuml файлами... (Ctrl+C для остановки)"
-    while true; do
-        inotifywait -q -e modify,create *.puml *.plantuml 2>/dev/null && \
-        just all
-    done
 
 # Создать директорию для вывода
 setup:
@@ -95,22 +86,6 @@ lint:
 # Проверить синтаксис конкретного файла
 lint-file file:
     @plantuml --check-syntax {{file}}
-
-# Быстрая проверка синтаксиса всех файлов перед генерацией
-check-before-run:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Быстрая проверка синтаксиса всех файлов..."
-    shopt -s nullglob
-    for file in *.puml *.plantuml; do
-        [[ -f "$file" ]] || continue
-        plantuml --check-syntax "$file" > /dev/null 2>&1 || {
-            echo "✗ Ошибка синтаксиса в: $file"
-            plantuml --check-syntax "$file"
-            exit 1
-        }
-    done
-    echo "✓ Все файлы прошли проверку синтаксиса"
 
 # Проверить установку PlantUML
 check:

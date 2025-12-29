@@ -46,39 +46,31 @@ package "Platform Implementations" {
         -bot: *tgbotapi.BotAPI
         -config: TelegramConfig
         -eventPublisher: EventPublisher
-        +GetPlatformType(): PlatformType
-        +Initialize(ctx, config): error
         +HandleWebhook(ctx, payload): error
         +NormalizeBanEvent(ctx, rawEvent): *UnifiedBanEvent, error
         +BanUser(ctx, req): error
-        +UnbanUser(ctx, chatID, userID): error
-        +SendMessage(ctx, req): error
-        -handleChatMemberUpdate(ctx, event): error
-        -convertToUnifiedBanEvent(event): *UnifiedBanEvent, error
+        +GetChatAdmins(ctx, chatID): []*UnifiedUser, error
+        -extractInitiatorAdmin(event): string
     }
     
     class VKAdapter {
         -vk: *VkAPI
         -config: VKConfig
         -eventPublisher: EventPublisher
-        +GetPlatformType(): PlatformType
-        +Initialize(ctx, config): error
         +HandleWebhook(ctx, payload): error
         +NormalizeBanEvent(ctx, rawEvent): *UnifiedBanEvent, error
         +BanUser(ctx, req): error
-        {note: Stub implementation}
+        -extractInitiatorAdmin(event): string
     }
     
     class DiscordAdapter {
         -bot: *discordgo.Session
         -config: DiscordConfig
         -eventPublisher: EventPublisher
-        +GetPlatformType(): PlatformType
-        +Initialize(ctx, config): error
         +HandleWebhook(ctx, payload): error
         +NormalizeBanEvent(ctx, rawEvent): *UnifiedBanEvent, error
         +BanUser(ctx, req): error
-        {note: Stub implementation}
+        -extractInitiatorAdmin(event): string
     }
     
     class PlatformFactory {
@@ -97,8 +89,10 @@ PlatformFactory ..> TelegramAdapter : creates
 PlatformFactory ..> VKAdapter : creates
 PlatformFactory ..> DiscordAdapter : creates
 
-PlatformAdapter ..> BanUserRequest : uses
-PlatformAdapter ..> SendMessageRequest : uses
-PlatformAdapter ..> UserPermissions : returns
+note right of TelegramAdapter
+  CRITICAL: Must extract
+  initiator_admin_id from
+  ChatMemberUpdated.From
+end note
 
 @enduml
